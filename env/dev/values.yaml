@@ -37,6 +37,8 @@ glpi:
 
   securityContext:
     allowPrivilegeEscalation: false
+    seccompProfile:
+      type: RuntimeDefault
 
 # -- MariaDB Subchart Configuration
 # Database Configuration (deploys helmforge/mariadb subchart)
