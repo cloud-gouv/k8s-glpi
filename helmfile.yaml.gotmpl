@@ -1,9 +1,5 @@
 environments:
-  dev:
-    values:
-      - env/{{ .Environment.Name }}/values.yaml
-    secrets:
-      - env/{{ .Environment.Name }}/secrets.enc.yaml
+  dev: {}
 ---
 repositories:
   - name: eftechcombr
@@ -16,3 +12,5 @@ releases:
     chart: eftechcombr/glpi
     version: 2.11.6
     missingFileHandler: Warn
+    values:
+      - env/{{ .Environment.Name }}/values.yaml
