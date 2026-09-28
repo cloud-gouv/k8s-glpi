@@ -1,0 +1,480 @@
+glpi:
+  language: "fr_FR"
+  
+  # PHP-FPM container configuration
+  phpfpm:
+    # Number of PHP-FPM replicas.
+    # Ignored (Kubernetes/HPA owns the field instead) when autoscaling.enabled is true.
+    replicaCount: 1
+
+    # -- Horizontal Pod Autoscaler
+    # Remember the shared-storage caveat: php-fpm reads/writes GLPI_VAR_DIR (uploads,
+    # sessions) on a PVC. Scaling beyond 1 replica requires that PVC to use a
+    # ReadWriteMany-capable storageClass (NFS, CephFS, EFS, etc) - see
+    # glpi.persistence.files.accessMode.
+    autoscaling:
+      enabled: false
+
+  # Nginx container configuration
+  nginx:
+    # Container image settings
+    image:
+      # Image repository for Nginx
+      repository: eftechcombr/glpi
+      # Image tag for Nginx
+      tag: nginx-11.0.9
+      # Image pull policy
+      pullPolicy: IfNotPresent
+    
+    # Number of Nginx replicas.
+    # Ignored (Kubernetes/HPA owns the field instead) when autoscaling.enabled is true.
+    replicaCount: 2
+
+    pdb:
+      enabled: true
+      minAvailable: ""
+      maxUnavailable: 1
+
+  # Persistent storage configuration for GLPI
+  persistence:
+    # Files volume (main GLPI data)
+    files:
+      # Enable persistent storage for files
+      enabled: true
+      # Storage class name (leave empty for default)
+      storageClass: ""
+      # Access mode for the volume
+      accessMode: ReadWriteOnce
+      # Size of the persistent volume
+      size: 10Gi
+    
+    # Marketplace volume (plugins)
+    marketplace:
+      # Enable persistent storage for marketplace
+      enabled: true
+      # Storage class name (leave empty for default)
+      storageClass: ""
+      # Access mode for the volume
+      accessMode: ReadWriteOnce
+      # Size of the persistent volume
+      size: 2Gi
+    
+    # Configuration volume
+    etc:
+      # Enable persistent storage for configuration
+      enabled: true
+      # Storage class name (leave empty for default)
+      storageClass: ""
+      # Access mode for the volume
+      accessMode: ReadWriteOnce
+      # Size of the persistent volume
+      size: 50Mi
+  
+  # -- Files Backup Configuration
+  # Periodically archives the files/marketplace/etc PVCs (uploads, documents, sessions,
+  # marketplace plugins, GLPI config) to S3-compatible storage. Mirrors the naming and
+  # implementation pattern of the helmforge/mariadb subchart's own backup.* (same uploader
+  # image, same existingSecret convention) - use that subchart's backup.enabled for database
+  # backups; this is the files-only counterpart, since GLPI's actual data lives on PVCs the
+  # mariadb subchart has no knowledge of.
+  backup:
+    # -- Enable the files backup CronJob. Requires s3.endpoint and s3.bucket to be set.
+    enabled: false
+    # -- Backup schedule in Cron format
+    schedule: "0 3 * * *"
+    # -- Suspend backup execution
+    suspend: false
+    # -- CronJob concurrency policy
+    concurrencyPolicy: Forbid
+    # -- Successful job history retained by the CronJob
+    successfulJobsHistoryLimit: 3
+    # -- Failed job history retained by the CronJob
+    failedJobsHistoryLimit: 3
+    # -- Job backoff limit
+    backoffLimit: 1
+    # -- Prefix used in generated backup archive names
+    archivePrefix: glpi
+    # -- Resources applied to the backup (tar) and upload containers
+    resources: {}
+    images:
+      # -- MinIO client image used to upload the archive to S3. Same image as the
+      # helmforge/mariadb subchart's backup.images.uploader, for consistency.
+      uploader:
+        repository: docker.io/helmforge/mc
+        tag: "1.0.0"
+        pullPolicy: IfNotPresent
+    # -- Which persistent volumes to include in the backup archive. Disable individually to
+    # reduce archive size/backup time - e.g. skip `files` (usually the largest, holding
+    # uploads/documents) if it is already covered by a separate volume-level snapshot policy
+    # (CSI VolumeSnapshot, cloud disk snapshots, etc).
+    volumes:
+      files: true
+      marketplace: true
+      etc: true
+    s3:
+      # -- S3-compatible endpoint URL, for example: https://s3.amazonaws.com or https://minio.example.com
+      endpoint: ""
+      # -- Target bucket name
+      bucket: ""
+      # -- Optional key prefix inside the bucket
+      prefix: glpi
+      # -- Create the bucket automatically when it does not exist yet
+      createBucketIfNotExists: true
+      # -- Existing secret containing access-key and secret-key
+      existingSecret: ""
+      # -- Secret key name for the access key inside s3.existingSecret
+      existingSecretAccessKeyKey: access-key
+      # -- Secret key name for the secret key inside s3.existingSecret
+      existingSecretSecretKeyKey: secret-key
+      # -- Inline access key used when s3.existingSecret is not set
+      accessKey: ""
+      # -- Inline secret key used when s3.existingSecret is not set
+      secretKey: ""
+
+  # -- GLPI Pod Security Context
+  # Security settings applied at the pod level
+  podSecurityContext:
+    # Set fsGroup to www-data (82) for file permissions
+    fsGroup: 82
+
+  # -- GLPI Container Security Context
+  # Security settings applied at the container level (php-fpm, nginx, all init Jobs, cronjob)
+  securityContext:
+    # Run as non-root user
+    runAsNonRoot: true
+    # Run as www-data user (82)
+    runAsUser: 82
+    # Drop all capabilities
+    capabilities:
+      drop:
+      - ALL
+    # Mount the container's root filesystem as read-only. Verified against the actual
+    # eftechcombr/glpi:php-fpm and :nginx images (docker run --read-only): php-fpm starts
+    # cleanly with no extra writable paths; nginx needs /tmp writable (proxy_temp etc, used
+    # by nginx-unprivileged's default config). When enabled, this chart mounts an emptyDir
+    # at /tmp on every container that shares this securityContext (php-fpm, nginx, init
+    # Jobs, cronjob) to cover both cases uniformly. GLPI's own data (uploads, sessions,
+    # config, marketplace) already lives on PVCs, unaffected by this setting either way.
+    readOnlyRootFilesystem: false
+
+# -- MariaDB Subchart Configuration
+# Database Configuration (deploys helmforge/mariadb subchart)
+# Replaces the inline MariaDB StatefulSet. Uses the helmforge/mariadb chart.
+# Service DNS: {release-name}-mariadb.{namespace}.svc.cluster.local:3306
+mariadb:
+  # Enable or disable MariaDB deployment
+  # Set to false to use an external database
+  enabled: true
+  # MariaDB deployment mode: standalone (Deployment) or replication (StatefulSet + GTID)
+  architecture: standalone
+
+  # Container image settings
+  image:
+    # Image repository for MariaDB
+    repository: docker.io/library/mariadb
+    # Image tag for MariaDB
+    tag: "12.3.2"
+    # Image pull policy
+    pullPolicy: IfNotPresent
+
+  # Database authentication configuration
+  auth:
+    # Root password for MariaDB
+    rootPassword: glpi
+    # Database name for GLPI
+    database: glpi
+    # Database username for GLPI
+    username: glpi
+    # Database password for GLPI user
+    password: glpi
+    # -- Use a pre-existing Secret (Doppler / External Secrets / Vault / sealed-secrets, etc)
+    # for MariaDB credentials instead of the plaintext values above. When set, leave
+    # rootPassword/password empty - GLPI's own containers read the password directly from this
+    # Secret (see glpi.mariadb.secretName in _helpers.tpl), so it stays in sync automatically.
+    # existingSecret: ""
+    # -- Key within existingSecret holding the application user password, if it differs from
+    # the helmforge/mariadb subchart's default ("mariadb-user-password").
+    # existingSecretUserPasswordKey: mariadb-user-password
+
+  # Service configuration
+  service:
+    # Service port for database connections
+    port: 3306
+
+  # Standalone mode specific configuration
+  standalone:
+    # Persistent storage configuration for MariaDB
+    persistence:
+      # Enable persistent storage for database
+      enabled: true
+      # Storage class name (leave empty for default)
+      storageClass: ""
+      # Size of the persistent volume
+      size: 10Gi
+    # Resource limits and requests for MariaDB
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+
+  # Init scripts executed on first boot (docker-entrypoint-initdb.d)
+  initdb:
+    scripts:
+      grant-timezone.sql: |
+        GRANT SELECT ON mysql.time_zone_name TO 'glpi'@'%';
+        FLUSH PRIVILEGES;
+
+  # -- MariaDB Pod Security Context
+  # Security settings applied at the pod level
+  podSecurityContext:
+    fsGroup: 999
+
+  # -- MariaDB Container Security Context
+  # Security settings applied at the container level
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    capabilities:
+      drop:
+        - ALL
+
+# -- Valkey Subchart Configuration
+# Cache Configuration (deploys Valkey subchart)
+# Replaces the inline Redis deployment. Uses the helmforge/valkey chart.
+# Service DNS: {fullnameOverride}-valkey-client.{namespace}.svc.cluster.local:6379
+valkey:
+  # Enable or disable Valkey deployment for caching
+  # Set to false if caching is not needed
+  enabled: true
+  # Valkey topology: standalone, replication, sentinel, or cluster
+  architecture: standalone
+
+  # Valkey container image settings
+  image:
+    # Image repository for Valkey
+    repository: docker.io/valkey/valkey
+    # Image tag for Valkey
+    tag: "9.1.0"
+    # Image pull policy
+    pullPolicy: IfNotPresent
+
+  # Authentication (disabled to match previous behavior)
+  auth:
+    enabled: false
+
+  # Service configuration
+  service:
+    # Service type (ClusterIP, NodePort, LoadBalancer)
+    type: ClusterIP
+    # Service port for Valkey connections
+    port: 6379
+
+  # Standalone mode specific configuration
+  standalone:
+    # Persistence (disabled — Valkey serves as a cache, not a database)
+    persistence:
+      enabled: false
+
+  # Resource limits and requests for Valkey
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  # -- Valkey Pod Security Context
+  podSecurityContext:
+    fsGroup: 1001
+
+  # -- Valkey Container Security Context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    capabilities:
+      drop:
+        - ALL
+
+# -- Ingress Configuration
+# Configure ingress to expose GLPI externally
+ingress:
+  # Enable or disable ingress
+  enabled: false
+  # Ingress class name (e.g., nginx, traefik, kong)
+  className: ""
+  # Annotations for the ingress resource
+  # Example for nginx ingress controller:
+  # annotations:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  #   nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+  annotations: {}
+  # Ingress host configuration
+  hosts:
+    - host: glpi.example.local
+      paths:
+        - path: /
+          pathType: Prefix
+  # TLS configuration for HTTPS
+  # Example:
+  # tls:
+  #   - secretName: glpi-tls
+  #     hosts:
+  #       - glpi.example.local
+  tls: []
+
+# -- Service Account Configuration
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# -- Image Pull Secrets
+# Secrets for pulling images from private registries
+imagePullSecrets: []
+
+# -- Name Overrides
+# Override the chart name
+nameOverride: ""
+# Override the full name
+fullnameOverride: ""
+
+# -- Pod Annotations
+# Annotations to add to GLPI pods
+podAnnotations: {}
+
+# -- Pod Labels
+# Labels to add to GLPI pods
+podLabels: {}
+
+# -- Priority Class Name
+# Assign a PriorityClass to all GLPI-owned pods (php-fpm, nginx, the init Jobs, and the
+# cronjob). Useful to protect the init Jobs (dbInstall/dbConfigure/etc) from eviction or
+# scheduling starvation under node pressure during install/upgrade, and/or to keep GLPI
+# itself running preferentially over lower-priority workloads. Must reference a
+# PriorityClass that already exists in the cluster (this chart does not create one).
+# Example: "system-cluster-critical" or a custom PriorityClass name.
+# To also prioritize the database/cache tier, set mariadb.priorityClassName and/or
+# valkey.priorityClassName - both subcharts already support this independently.
+priorityClassName: ""
+
+# -- Node Selector
+# Node labels for pod assignment
+# Example:
+# nodeSelector:
+#   disktype: ssd
+nodeSelector: {}
+
+# -- Tolerations
+# Tolerations for pod assignment
+# Example:
+# tolerations:
+#   - key: "key1"
+#     operator: "Equal"
+#     value: "value1"
+#     effect: "NoSchedule"
+tolerations: []
+
+# -- Affinity
+# Affinity rules for pod assignment
+# Example:
+# affinity:
+#   nodeAffinity:
+#     requiredDuringSchedulingIgnoredDuringExecution:
+#       nodeSelectorTerms:
+#       - matchExpressions:
+#         - key: kubernetes.io/hostname
+#           operator: In
+#           values:
+#           - node1
+affinity: {}
+
+# -- External Database Configuration
+# Used when mariadb.enabled is false. host/database/username are required in that case (the
+# chart fails fast at template-render time otherwise, rather than leaving the wait-for-mariadb
+# initContainers hanging against an empty host).
+externalDatabase:
+  # External database hostname or IP
+  host: ""
+  # External database port
+  port: 3306
+  # External database name
+  database: ""
+  # External database username
+  username: ""
+  # External database password. Ignored when existingSecret is set.
+  password: ""
+  # -- Name of a pre-existing Secret (Doppler / External Secrets / Vault / sealed-secrets, etc)
+  # containing the external database password, instead of the plaintext value above. Must
+  # contain a key named "password". When left empty, the chart generates its own Secret from
+  # the plaintext password above (unchanged default behavior).
+  existingSecret: ""
+
+# -- Database SSL/TLS Configuration
+# Configures encrypted connection between GLPI and the database (MySQL/MariaDB).
+# Applies whether using the internal MariaDB subchart (with SSL enabled on MariaDB) or an external database.
+# Supports mounting CA certificate, client certificate, and client private key from an existing Kubernetes Secret,
+# ConfigMap, or inline values, as well as specifying custom certificate paths and cipher suites.
+database:
+  ssl:
+    # Enable SSL/TLS for database connection (sets GLPI_DB_SSL="true")
+    enabled: false
+    # -- Name of a pre-existing Kubernetes Secret containing TLS certificates and/or private key.
+    # When specified, the Secret is mounted at `certPath` (/etc/glpi/db-tls by default) across all
+    # GLPI pods, jobs, and cronjobs.
+    existingSecret: ""
+    # -- Name of a pre-existing ConfigMap containing CA certificate(s).
+    # When specified, the ConfigMap is mounted at `certPath` (or `certPath-cm` if existingSecret is also set).
+    existingConfigMap: ""
+    # -- Key inside existingSecret or existingConfigMap holding the CA certificate file (default: "ca.crt").
+    # Set to empty ("") if no CA certificate file is needed.
+    caKey: "ca.crt"
+    # -- Key inside existingSecret holding the client certificate file (e.g. "tls.crt").
+    # Leave empty if client certificate (mTLS) is not used.
+    certKey: ""
+    # -- Key inside existingSecret holding the client private key file (e.g. "tls.key").
+    # Leave empty if client certificate (mTLS) is not used.
+    keyKey: ""
+    # -- Mount path inside containers for TLS files (default: /etc/glpi/db-tls).
+    certPath: "/etc/glpi/db-tls"
+    # -- Inline CA certificate PEM content. When provided without existingSecret, the chart automatically
+    # generates a Secret containing this certificate.
+    caCert: ""
+    # -- Inline client certificate PEM content.
+    clientCert: ""
+    # -- Inline client private key PEM content.
+    clientKey: ""
+    # -- Direct file path to the CA certificate inside the container (e.g. "/etc/ssl/certs/ca-certificates.crt").
+    # Overrides the default derived path ($certPath/$caKey).
+    ca: ""
+    # -- Direct file path to the client certificate inside the container.
+    # Overrides the default derived path ($certPath/$certKey).
+    cert: ""
+    # -- Direct file path to the client private key inside the container.
+    # Overrides the default derived path ($certPath/$keyKey).
+    key: ""
+    # -- Path to directory containing trusted CA certificates (sets GLPI_DB_SSL_CAPATH).
+    capath: ""
+    # -- List of allowable cipher suites for SSL connection (sets GLPI_DB_SSL_CIPHER).
+    cipher: ""
+
+# -- External Cache Configuration
+# Used when valkey.enabled is false
+externalCache:
+  # External Redis/Valkey hostname or IP
+  host: ""
+  # External Redis/Valkey port
+  port: 6379
+  # External Redis/Valkey password (leave empty if no auth)
+  password: ""
+  # Enable TLS for cache connection (rediss://)
+  tls: false

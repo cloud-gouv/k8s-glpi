@@ -1,0 +1,18 @@
+environments:
+  dev:
+    values:
+      - env/{{ .Environment.Name }}/values.yaml
+    secrets:
+      - env/{{ .Environment.Name }}/secrets.enc.yaml
+---
+repositories:
+  - name: eftechcombr
+    url: https://eftechcombr.github.io/glpi/
+
+---
+releases:
+  - name: glpi
+    namespace: {{ .Namespace }}
+    chart: eftechcombr/glpi
+    version: 2.11.6
+    missingFileHandler: Warn
