@@ -21,3 +21,48 @@ spec:
                     operator: In
                     values: ["glpi"]
               topologyKey: kubernetes.io/hostname
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: glpi-db-upgrade
+  namespace: {{ .Namespace }}
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: wait-for-mariadb
+        securityContext:
+          allowPrivilegeEscalation: false
+          seccompProfile:
+            type: RuntimeDefault
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: glpi-db-configure
+  namespace: {{ .Namespace }}
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: wait-for-mariadb
+        securityContext:
+          allowPrivilegeEscalation: false
+          seccompProfile:
+            type: RuntimeDefault
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: glpi-db-install
+  namespace: {{ .Namespace }}
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: wait-for-mariadb
+        securityContext:
+          allowPrivilegeEscalation: false
+          seccompProfile:
+            type: RuntimeDefault
