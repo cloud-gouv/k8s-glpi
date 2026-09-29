@@ -132,3 +132,34 @@ spec:
                     operator: In
                     values: ["glpi"]
               topologyKey: kubernetes.io/hostname
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: glpi-cache-configure
+  namespace: {{ .Namespace }}
+spec:
+  template:
+    spec:
+      containers:
+      - name: base
+        resources:
+          limits:
+            memory: 512Mi
+          requests:
+            memory: 512Mi
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/component
+                    operator: In
+                    values: ["php-fpm"]
+                  - key: app.kubernetes.io/instance
+                    operator: In
+                    values: ["glpi"]
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values: ["glpi"]
+              topologyKey: kubernetes.io/hostname
