@@ -36,6 +36,21 @@ spec:
           allowPrivilegeEscalation: false
           seccompProfile:
             type: RuntimeDefault
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/component
+                    operator: In
+                    values: ["php-fpm"]
+                  - key: app.kubernetes.io/instance
+                    operator: In
+                    values: ["glpi"]
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values: ["glpi"]
+              topologyKey: kubernetes.io/hostname
 ---
 apiVersion: batch/v1
 kind: Job
@@ -60,6 +75,13 @@ metadata:
 spec:
   template:
     spec:
+      containers:
+      - name: base
+        resources:
+          limits:
+            memory: 512Mi
+          requests:
+            memory: 512Mi
       initContainers:
       - name: wait-for-mariadb
         securityContext:
