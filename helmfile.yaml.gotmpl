@@ -4,7 +4,6 @@ environments:
 repositories:
   - name: eftechcombr
     url: git+https://github.com/ohemelaar-dinum/glpi@helm?ref=feat-custom-nginx-config
-
 ---
 releases:
   - name: glpi
@@ -13,8 +12,11 @@ releases:
     version: 2.11.6
     missingFileHandler: Warn
     values:
+      - env/common/values.yaml
       - env/{{ .Environment.Name }}/values.yaml
+    secrets:
+      - env/{{ .Environment.Name }}/secrets.enc.yaml
     strategicMergePatches:
-      - env/{{ .Environment.Name }}/patch-affinities.yaml.gotmpl
-      - env/{{ .Environment.Name }}/patch-resources.yaml.gotmpl
-      - env/{{ .Environment.Name }}/patch-securitycontexts.yaml.gotmpl
+      - env/common/patch-affinities.yaml.gotmpl
+      - env/common/patch-resources.yaml.gotmpl
+      - env/common/patch-securitycontexts.yaml.gotmpl
