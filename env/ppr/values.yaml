@@ -1,0 +1,10 @@
+ingress:
+  hosts:
+    - host: glpi.dinum-general-ppr-euw2-wapp-01.k8s.dev.opicloud.fr
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+  - hosts:
+    - glpi.dinum-general-ppr-euw2-wapp-01.k8s.dev.opicloud.fr
+    secretName: glpi
