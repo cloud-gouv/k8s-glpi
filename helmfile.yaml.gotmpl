@@ -15,4 +15,4 @@ releases:
     values:
       - env/{{ .Environment.Name }}/values.yaml
     strategicMergePatches:
-      - env/{{ .Environment.Name }}/patches.yaml
+      - env/{{ .Environment.Name }}/patches.yaml.gotmpl
