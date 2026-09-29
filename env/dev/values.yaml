@@ -204,22 +204,19 @@ valkey:
       drop:
         - ALL
 
-# -- Ingress Configuration
-# Configure ingress to expose GLPI externally
 ingress:
-  # Enable or disable ingress
-  enabled: false
-  # Ingress class name (e.g., nginx, traefik, kong)
-  className: ""
-  # Annotations for the ingress resource
-  # Example for nginx ingress controller:
-  # annotations:
-  #   cert-manager.io/cluster-issuer: letsencrypt-prod
-  #   nginx.ingress.kubernetes.io/proxy-body-size: "100m"
-  annotations: {}
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+    external-dns.alpha.kubernetes.io/ingress-hostname-source: defined-hosts-only
+    external-dns.alpha.kubernetes.io/ttl: "10"
+    nginx.ingress.kubernetes.io/backend-protocol: HTTP
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
   # Ingress host configuration
   hosts:
-    - host: glpi.example.local
+    - host: glpi.opicloud-ohe-dev-osc-euw2-wapp-02.k8s.dev.opicloud.fr
       paths:
         - path: /
           pathType: Prefix
@@ -229,7 +226,10 @@ ingress:
   #   - secretName: glpi-tls
   #     hosts:
   #       - glpi.example.local
-  tls: []
+  tls:
+  - hosts:
+    - glpi.opicloud-ohe-dev-osc-euw2-wapp-02.k8s.dev.opicloud.fr
+    secretName: glpi
 
 # -- Service Account Configuration
 serviceAccount:
