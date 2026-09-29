@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Job
+metadata:
+  name: glpi-verify-dir
+spec:
+  template:
+    spec:
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/component
+                    operator: In
+                    values: ["php-fpm"]
+                  - key: app.kubernetes.io/instance
+                    operator: In
+                    values: ["glpi"]
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values: ["glpi"]
+              topologyKey: kubernetes.io/hostname

@@ -14,3 +14,5 @@ releases:
     missingFileHandler: Warn
     values:
       - env/{{ .Environment.Name }}/values.yaml
+    strategicMergePatches:
+      - env/{{ .Environment.Name }}/patches.yaml
