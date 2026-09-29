@@ -1,0 +1,20 @@
+{{ $namespace := .Namespace }}
+{{ $toPatch := list "glpi-db-upgrade" "glpi-db-configure" "glpi-db-install" "glpi-cache-configure" }}
+{{ range $toPatch }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ . }}
+  namespace: {{ $namespace }}
+spec:
+  template:
+    spec:
+      containers:
+      - name: base
+        resources:
+          limits:
+            memory: 512Mi
+          requests:
+            memory: 512Mi
+---
+{{ end }}

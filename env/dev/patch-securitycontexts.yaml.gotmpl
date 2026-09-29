@@ -1,0 +1,19 @@
+{{ $namespace := .Namespace }}
+{{ $toPatch := list "glpi-db-upgrade" "glpi-db-configure" "glpi-db-install" }}
+{{ range $toPatch }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ . }}
+  namespace: {{ $namespace }}
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: wait-for-mariadb
+        securityContext:
+          allowPrivilegeEscalation: false
+          seccompProfile:
+            type: RuntimeDefault
+---
+{{ end }}

@@ -1,0 +1,28 @@
+{{ $namespace := .Namespace }}
+{{ $toPatch := list "glpi-verify-dir" "glpi-db-upgrade" "glpi-db-configure" "glpi-db-install" "glpi-cache-configure" }}
+{{ range $toPatch }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ . }}
+  namespace: {{ $namespace }}
+spec:
+  template:
+    spec:
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/component
+                    operator: In
+                    values: ["php-fpm"]
+                  - key: app.kubernetes.io/instance
+                    operator: In
+                    values: ["glpi"]
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values: ["glpi"]
+              topologyKey: kubernetes.io/hostname
+---
+{{ end }}
