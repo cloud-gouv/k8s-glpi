@@ -4,13 +4,13 @@ environments:
 ---
 repositories:
   - name: eftechcombr
-    url: git+https://github.com/ohemelaar-dinum/glpi@helm?ref=feat-custom-nginx-config
+    url: https://eftechcombr.github.io/glpi/
 ---
 releases:
   - name: glpi
     namespace: {{ .Namespace }}
     chart: eftechcombr/glpi
-    version: 2.11.6
+    version: 2.12.0
     missingFileHandler: Warn
     values:
       - env/common/values.yaml

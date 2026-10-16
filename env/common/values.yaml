@@ -66,3 +66,11 @@ ingress:
   - hosts:
     - glpi.opicloud-ohe-dev-osc-euw2-wapp-02.k8s.dev.opicloud.fr
     secretName: glpi
+
+valkey:
+  standalone:
+    resources:
+      limits:
+        memory: 256Mi
+      requests:
+        memory: 256Mi
