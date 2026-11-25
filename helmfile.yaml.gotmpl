@@ -1,11 +1,13 @@
 environments:
   dev: {}
   ppr: {}
+
 ---
+
 repositories:
   - name: eftechcombr
     url: https://eftechcombr.github.io/glpi/
----
+
 releases:
   - name: glpi
     namespace: {{ .Namespace }}
@@ -13,11 +15,17 @@ releases:
     version: 2.12.0
     missingFileHandler: Warn
     values:
-      - env/common/values.yaml
+      - common/values.yaml
       - env/{{ .Environment.Name }}/values.yaml
     secrets:
       - env/{{ .Environment.Name }}/secrets.enc.yaml
     strategicMergePatches:
-      - env/common/patch-affinities.yaml.gotmpl
-      - env/common/patch-resources.yaml.gotmpl
-      - env/common/patch-securitycontexts.yaml.gotmpl
+      - common/patch-affinities.yaml.gotmpl
+      - common/patch-resources.yaml.gotmpl
+      - common/patch-securitycontexts.yaml.gotmpl
+
+  - name: glpi-extra
+    namespace: {{ .Namespace }}
+    chart: extra
+    values:
+      - env/{{ .Environment.Name }}/values.yaml
