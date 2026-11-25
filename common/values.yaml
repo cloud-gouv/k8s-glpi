@@ -1,6 +1,5 @@
 glpi:
   language: "fr_FR"
-
   phpfpm:
     # Number of PHP-FPM replicas.
     # Ignored (Kubernetes/HPA owns the field instead) when autoscaling.enabled is true.
@@ -11,15 +10,12 @@ glpi:
     replicaCount: 1
     autoscaling:
       enabled: false
-
   nginx:
     replicaCount: 2
-
     pdb:
       enabled: true
       minAvailable: ""
       maxUnavailable: 1
-
     configTemplate: |-
       server {
           listen 8080;
@@ -41,32 +37,10 @@ glpi:
               fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
           }
       }
-
   securityContext:
     allowPrivilegeEscalation: false
     seccompProfile:
       type: RuntimeDefault
-
-ingress:
-  enabled: true
-  className: "nginx"
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-production
-    external-dns.alpha.kubernetes.io/ingress-hostname-source: defined-hosts-only
-    external-dns.alpha.kubernetes.io/ttl: "10"
-    nginx.ingress.kubernetes.io/backend-protocol: HTTP
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-  hosts:
-    - host: glpi.opicloud-ohe-dev-osc-euw2-wapp-02.k8s.dev.opicloud.fr
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-  - hosts:
-    - glpi.opicloud-ohe-dev-osc-euw2-wapp-02.k8s.dev.opicloud.fr
-    secretName: glpi
-
 valkey:
   standalone:
     resources:
